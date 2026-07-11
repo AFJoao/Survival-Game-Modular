@@ -2,7 +2,7 @@
 // MAIN — ponto de entrada: orquestra todos os módulos e roda o loop
 // =================================================================
 import { EventBus, TickManager } from './core.js';
-import { scene, camera, renderer, sun, hemiLight } from './scene.js';
+import { scene, camera, renderer, sun, hemiLight, fillLight, moonLight } from './scene.js';
 import { AudioFX } from './audio.js';
 import { WORLD_SIZE, terrainHeight } from './world.js';
 import { Survival } from './survival.js';
@@ -284,15 +284,129 @@ function updateDayNight(dt) {
     Day.isBloodMoon = Math.random() < 0.2;
   }
   Day.isNight = Day.time > 0.5;
-  const sunAngle = Day.time * Math.PI * 2;
-  sun.position.set(Math.cos(sunAngle)*60, Math.sin(sunAngle)*60, 20);
-  const dayBrightness = Math.max(0, Math.sin(sunAngle));
-  hemiLight.intensity = 0.25 + dayBrightness * 0.5;
-  sun.intensity = dayBrightness * 0.85;
-  const skyColor = new THREE.Color().setHSL(0.58, 0.35, 0.18 + dayBrightness * 0.42);
-  if (Day.isBloodMoon && Day.isNight) skyColor.setHSL(0.02, 0.5, 0.12);
+
+  const t = Day.time; // 0.0 = meia-noite, 0.25 = manhã, 0.5 = meio-dia, 0.75 = entardecer
+
+  // ── Keyframes de cor do céu (H, S, L) ao longo do dia ──
+  // Definidos em pontos-chave; tudo interpolado suavemente
+  //  t=0.00  meia-noite     azul muito escuro
+  //  t=0.15  pré-amanhecer  roxo-cinza escuro
+  //  t=0.22  nascer do sol  laranja quente
+  //  t=0.30  manhã          azul frio claro
+  //  t=0.50  meio-dia       azul céu saturado
+  //  t=0.68  tarde          azul levemente mais frio
+  //  t=0.75  pôr do sol     laranja/vermelho
+  //  t=0.83  crepúsculo     roxo escuro
+  //  t=1.00  meia-noite     azul muito escuro (igual a 0.00)
+
+  const skyKeys = [
+    { t: 0.00, h: 0.620, s: 0.45, l: 0.06 },  // meia-noite
+    { t: 0.15, h: 0.680, s: 0.35, l: 0.08 },  // pré-amanhecer roxo
+    { t: 0.22, h: 0.060, s: 0.70, l: 0.28 },  // nascer sol laranja
+    { t: 0.30, h: 0.560, s: 0.38, l: 0.46 },  // manhã azul frio
+    { t: 0.50, h: 0.570, s: 0.42, l: 0.58 },  // meio-dia
+    { t: 0.68, h: 0.570, s: 0.35, l: 0.50 },  // tarde
+    { t: 0.75, h: 0.055, s: 0.75, l: 0.35 },  // pôr do sol
+    { t: 0.83, h: 0.720, s: 0.40, l: 0.12 },  // crepúsculo roxo
+    { t: 1.00, h: 0.620, s: 0.45, l: 0.06 },  // meia-noite (loop)
+  ];
+
+  // Keyframes de intensidade solar e lunar
+  const lightKeys = [
+    { t: 0.00, sunInt: 0.00, moonInt: 0.30, hemiInt: 0.22, fillInt: 0.20 },
+    { t: 0.15, sunInt: 0.00, moonInt: 0.22, hemiInt: 0.25, fillInt: 0.18 },
+    { t: 0.22, sunInt: 0.45, moonInt: 0.05, hemiInt: 0.42, fillInt: 0.10 },
+    { t: 0.30, sunInt: 0.85, moonInt: 0.00, hemiInt: 0.60, fillInt: 0.06 },
+    { t: 0.50, sunInt: 1.15, moonInt: 0.00, hemiInt: 0.75, fillInt: 0.04 },
+    { t: 0.68, sunInt: 0.90, moonInt: 0.00, hemiInt: 0.65, fillInt: 0.06 },
+    { t: 0.75, sunInt: 0.50, moonInt: 0.00, hemiInt: 0.45, fillInt: 0.10 },
+    { t: 0.83, sunInt: 0.02, moonInt: 0.15, hemiInt: 0.28, fillInt: 0.18 },
+    { t: 1.00, sunInt: 0.00, moonInt: 0.30, hemiInt: 0.22, fillInt: 0.20 },
+  ];
+
+  // Keyframes da cor do sol
+  const sunColorKeys = [
+    { t: 0.00, r: 0.40, g: 0.45, b: 0.70 },  // azul lua
+    { t: 0.15, r: 0.45, g: 0.40, b: 0.65 },
+    { t: 0.22, r: 1.00, g: 0.55, b: 0.15 },  // laranja nascer
+    { t: 0.30, r: 1.00, g: 0.92, b: 0.75 },  // branco-amarelo manhã
+    { t: 0.50, r: 1.00, g: 0.97, b: 0.90 },  // branco meio-dia
+    { t: 0.68, r: 1.00, g: 0.93, b: 0.78 },  // amarelo tarde
+    { t: 0.75, r: 1.00, g: 0.42, b: 0.10 },  // laranja-vermelho pôr
+    { t: 0.83, r: 0.50, g: 0.35, b: 0.60 },  // roxo crepúsculo
+    { t: 1.00, r: 0.40, g: 0.45, b: 0.70 },
+  ];
+
+  // Keyframes cor hemi sky
+  const hemiSkyKeys = [
+    { t: 0.00, r: 0.05, g: 0.08, b: 0.18 },
+    { t: 0.22, r: 0.55, g: 0.28, b: 0.10 },
+    { t: 0.30, r: 0.55, g: 0.72, b: 0.90 },
+    { t: 0.50, r: 0.65, g: 0.82, b: 0.98 },
+    { t: 0.68, r: 0.55, g: 0.72, b: 0.88 },
+    { t: 0.75, r: 0.60, g: 0.28, b: 0.10 },
+    { t: 0.83, r: 0.08, g: 0.05, b: 0.15 },
+    { t: 1.00, r: 0.05, g: 0.08, b: 0.18 },
+  ];
+
+  // ── Função de interpolação entre keyframes ──
+  function sampleKeys(keys, time) {
+    let a = keys[0], b = keys[keys.length - 1];
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (time >= keys[i].t && time <= keys[i+1].t) {
+        a = keys[i]; b = keys[i+1]; break;
+      }
+    }
+    const span = b.t - a.t;
+    if (span === 0) return { ...a };
+    const raw = (time - a.t) / span;
+    // Suavizar com smoothstep para evitar transições abruptas
+    const p = raw * raw * (3 - 2 * raw);
+    const result = {};
+    for (const k of Object.keys(a)) {
+      if (k === 't') continue;
+      result[k] = a[k] + (b[k] - a[k]) * p;
+    }
+    return result;
+  }
+
+  const sky   = sampleKeys(skyKeys, t);
+  const lgt   = sampleKeys(lightKeys, t);
+  const sunC  = sampleKeys(sunColorKeys, t);
+  const hemiC = sampleKeys(hemiSkyKeys, t);
+
+  // Aplicar céu e névoa
+  const skyColor = new THREE.Color().setHSL(sky.h, sky.s, sky.l);
   renderer.setClearColor(skyColor);
   scene.fog.color.copy(skyColor);
+  scene.fog.density = THREE.MathUtils.lerp(0.0048, 0.0030, Math.max(0, Math.sin(t * Math.PI * 2 - Math.PI * 0.5) * -1 * 0.5 + 0.5));
+
+  // Posição sol/lua orbitando
+  const sunAngle = t * Math.PI * 2 - Math.PI * 0.5;
+  sun.position.set(Math.cos(sunAngle) * 80, Math.sin(sunAngle) * 80, 25);
+  moonLight.position.set(-Math.cos(sunAngle) * 80, -Math.sin(sunAngle) * 80, -25);
+
+  // Aplicar cores e intensidades
+  sun.color.setRGB(sunC.r, sunC.g, sunC.b);
+  sun.intensity = Day.isBloodMoon && Day.isNight ? 0.0 : lgt.sunInt;
+
+  moonLight.color.set(Day.isBloodMoon && Day.isNight ? 0xcc2200 : 0x8899cc);
+  moonLight.intensity = Day.isBloodMoon && Day.isNight ? 0.40 : lgt.moonInt;
+
+  hemiLight.color.setRGB(hemiC.r, hemiC.g, hemiC.b);
+  hemiLight.groundColor.set(Day.isNight ? 0x040608 : 0x2e2c18);
+  hemiLight.intensity = lgt.hemiInt;
+
+  fillLight.intensity = lgt.fillInt;
+
+  // Blood moon — tinge o céu de vermelho escuro gradualmente
+  if (Day.isBloodMoon && Day.isNight) {
+    const bmColor = new THREE.Color(0x1a0303);
+    renderer.setClearColor(bmColor);
+    scene.fog.color.copy(bmColor);
+    hemiLight.color.set(0x3a0808);
+    hemiLight.groundColor.set(0x0d0101);
+  }
 }
 
 // ──────────────────────────────────────────────

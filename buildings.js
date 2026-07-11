@@ -101,7 +101,17 @@ export function makeBuilding(x, z, w, d, h, color, opts = {}) {
     }
   }
 
-  const y = terrainHeight(x, z);
+  // Amostra o terreno nos 4 cantos + centro e usa o mínimo,
+  // assim o prédio "afunda" no ponto mais alto em vez de flutuar.
+  const halfW = w / 2, halfD = d / 2;
+  const corners = [
+    terrainHeight(x - halfW, z - halfD),
+    terrainHeight(x + halfW, z - halfD),
+    terrainHeight(x - halfW, z + halfD),
+    terrainHeight(x + halfW, z + halfD),
+    terrainHeight(x, z),
+  ];
+  const y = Math.min(...corners);
   group.position.set(x, y, z);
   scene.add(group);
 

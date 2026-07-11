@@ -68,9 +68,9 @@ function buildCamp(x, z) {
     log.rotation.z = Math.PI/2; log.rotation.y = (i/4)*Math.PI;
     log.position.set(1,0.1,0.5); g.add(log);
   }
-  const c1 = makeCrate(0,0); c1.position.set(2.2,-0.5,0); g.add(c1);
-  const c2 = makeCrate(0,0); c2.position.set(2.6, 0.3,0); g.add(c2);
-  const b1 = makeBarrel(0,0); b1.position.set(-2.5,terrainHeight(x,z)+0.42,1.5); g.add(b1);
+  const c1 = makeCrate(0,0); c1.position.set(2.2, 0,0); g.add(c1);
+  const c2 = makeCrate(0,0); c2.position.set(2.6, 0,0); g.add(c2);
+  const b1 = makeBarrel(0,0); b1.position.set(-2.5, 0, 1.5); g.add(b1);
   g.position.set(x, terrainHeight(x,z), z);
   return g;
 }

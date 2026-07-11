@@ -3,6 +3,7 @@
 // =================================================================
 import { EventBus } from './core.js';
 import { camera, renderer } from './scene.js';
+import { glbLoaded } from './zombies.js';
 import { WORLD_SIZE, terrainHeight } from './world.js';
 import { Survival } from './survival.js';
 import { AudioFX } from './audio.js';
@@ -40,6 +41,13 @@ let mouseSensitivity = 1;
 const inputHandlers = {};
 export function registerInputHandler(key, fn) { inputHandlers[key] = fn; }
 
+// Mostra estado de carregamento enquanto o GLB não está pronto
+startBtn.textContent = 'Carregando modelos…';
+startBtn.disabled = true;
+glbLoaded.then(() => {
+  startBtn.textContent = 'Clique para jogar';
+  startBtn.disabled = false;
+});
 startBtn.addEventListener('click', () => { AudioFX.ensure(); renderer.domElement.requestPointerLock(); });
 resumeBtn.addEventListener('click', () => { AudioFX.uiClick(); renderer.domElement.requestPointerLock(); });
 sensSliderEl.addEventListener('input', () => {
