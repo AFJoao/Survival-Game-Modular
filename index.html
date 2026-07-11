@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Survival FPS — MVP 0</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #10130f; font-family: 'Segoe UI', Arial, sans-serif; user-select: none; }
+  canvas { display: block; }
+  #blocker { position: fixed; inset: 0; background: rgba(5,8,5,0.85); display: flex; align-items: center; justify-content: center; z-index: 30; color: #fff; text-align: center; flex-direction: column; }
+  #blocker h1 { font-size: 26px; margin-bottom: 6px; letter-spacing: 1px; }
+  #blocker p { opacity: 0.75; font-size: 13px; max-width: 420px; line-height: 1.6; }
+  #blocker button { margin-top: 18px; padding: 12px 28px; font-size: 15px; cursor: pointer; background: #6b8f3f; color: #fff; border: none; border-radius: 3px; letter-spacing: 0.5px; }
+  #crosshair { position: fixed; top: 50%; left: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255,255,255,0.85); z-index: 8; box-shadow: 0 0 2px rgba(0,0,0,0.8); pointer-events: none; }
+  #vitals { position: fixed; bottom: 18px; left: 18px; z-index: 10; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+  .vitalRow { display: flex; align-items: center; margin-bottom: 5px; font-size: 11px; }
+  .vitalLabel { width: 46px; opacity: 0.8; }
+  .barBg { width: 170px; height: 11px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.35); border-radius: 2px; overflow: hidden; }
+  .barFill { height: 100%; width: 100%; transition: width 0.25s; }
+  #healthFill { background: #c0392b; }
+  #hungerFill { background: #6fbf4a; }
+  #thirstFill { background: #3a8fd8; }
+  #staminaFill { background: #e0c239; }
+  #weaponInfo { position: fixed; bottom: 18px; right: 18px; z-index: 10; color: #fff; text-align: right; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+  #weaponName { font-size: 15px; font-weight: 600; letter-spacing: 0.5px; }
+  #ammoCount { font-size: 22px; font-weight: 700; }
+  #ammoReserve { font-size: 12px; opacity: 0.7; }
+  #hotbar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 10; }
+  .slot { width: 48px; height: 48px; background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.25); border-radius: 3px; position: relative; }
+  .slot.selected { border-color: #e0c239; box-shadow: 0 0 0 1px #e0c239, 0 0 8px rgba(224,194,57,0.6); }
+  .slot .swatch { position: absolute; top: 5px; left: 5px; right: 5px; bottom: 15px; border-radius: 2px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .slot .swatch svg { width: 78%; height: 78%; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
+  .slot .qty { position: absolute; bottom: 1px; right: 3px; font-size: 10px; color: #fff; text-shadow: 0 1px 2px #000; }
+  .slot .keyBadge { position: absolute; top: -7px; left: -7px; min-width: 15px; height: 15px; padding: 0 2px; border-radius: 3px; background: rgba(15,15,15,0.92); border: 1px solid rgba(255,255,255,0.4); color: #ffd479; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  #interactPrompt { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 13px; z-index: 10; background: rgba(0,0,0,0.5); padding: 6px 12px; border-radius: 3px; display: none; }
+  #topInfo { position: fixed; top: 16px; left: 16px; z-index: 10; color: #fff; font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); line-height: 1.7; opacity: 0.9; }
+  #topInfo b { color: #ffd479; }
+  #debugPanel { position: fixed; top: 16px; right: 16px; z-index: 10; color: #9fd89f; font-size: 11px; text-align: right; line-height: 1.6; opacity: 0.85; font-family: monospace; }
+  #warning { position: fixed; top: 50%; left: 50%; transform: translate(-50%, 60px); color: #ff5c5c; font-weight: bold; font-size: 14px; z-index: 10; display: none; }
+  #damageFlash { position: fixed; inset: 0; background: rgba(200,30,30,0.35); opacity: 0; pointer-events: none; z-index: 9; transition: opacity 0.15s; }
+  #deathOverlay { position: fixed; inset: 0; background: rgba(20,5,5,0.9); z-index: 25; display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff; text-align: center; }
+  #deathOverlay h1 { font-size: 32px; margin-bottom: 8px; }
+  #deathOverlay button { margin-top: 16px; padding: 10px 24px; font-size: 15px; cursor: pointer; background: #c0392b; color: #fff; border: none; border-radius: 4px; }
+  #saveToast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: #fff; padding: 6px 14px; border-radius: 3px; font-size: 12px; z-index: 12; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  #pauseMenu { position: fixed; inset: 0; background: rgba(5,8,5,0.85); display: none; align-items: center; justify-content: center; z-index: 30; color: #fff; text-align: center; flex-direction: column; }
+  #pauseMenu h1 { font-size: 24px; margin-bottom: 4px; letter-spacing: 1px; }
+  #pauseMenu .hint { opacity: 0.6; font-size: 12px; margin-bottom: 18px; }
+  #pauseMenu .settingRow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; }
+  #pauseMenu .settingRow label { width: 130px; text-align: right; opacity: 0.85; }
+  #pauseMenu input[type=range] { width: 180px; }
+  #pauseMenu button { margin-top: 16px; padding: 11px 26px; font-size: 14px; cursor: pointer; background: #6b8f3f; color: #fff; border: none; border-radius: 3px; }
+  #sensValue { display: inline-block; width: 32px; opacity: 0.7; font-size: 12px; }
+  #damageDir { position: fixed; top: 50%; left: 50%; width: 0; height: 0; z-index: 9; pointer-events: none; opacity: 0; }
+  #damageDir .wedge { position: absolute; left: -20px; top: -150px; width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-bottom: 30px solid rgba(255,60,60,0.85); filter: drop-shadow(0 0 5px rgba(255,20,20,0.7)); }
+</style>
+</head>
+<body>
+
+<div id="blocker">
+  <h1>SURVIVAL — MVP 0</h1>
+  <p>WASD anda · Shift corre · Ctrl agacha · Espaço pula · Mouse olha · E coleta · Roda troca item · Q dropa (Shift+Q pilha) · Clique esquerdo ataca · 1 pistola / 2 machado · R recarrega · F come · G bebe · H bandagem · B constrói parede · Esc pausa · F5 salva / F9 carrega</p>
+  <button id="startBtn">Clique para jogar</button>
+</div>
+
+<div id="pauseMenu">
+  <h1>PAUSADO</h1>
+  <div class="hint">Esc para pausar/retomar</div>
+  <div class="settingRow">
+    <label for="sensSlider">Sensibilidade do mouse</label>
+    <input type="range" id="sensSlider" min="0.3" max="3" step="0.05" value="1">
+    <span id="sensValue">1.0x</span>
+  </div>
+  <button id="resumeBtn">Retomar</button>
+</div>
+
+<div id="damageDir"><div class="wedge"></div></div>
+<div id="crosshair"></div>
+
+<div id="vitals">
+  <div class="vitalRow"><span class="vitalLabel">Vida</span><div class="barBg"><div id="healthFill" class="barFill"></div></div></div>
+  <div class="vitalRow"><span class="vitalLabel">Fome</span><div class="barBg"><div id="hungerFill" class="barFill"></div></div></div>
+  <div class="vitalRow"><span class="vitalLabel">Sede</span><div class="barBg"><div id="thirstFill" class="barFill"></div></div></div>
+  <div class="vitalRow"><span class="vitalLabel">Fôlego</span><div class="barBg"><div id="staminaFill" class="barFill"></div></div></div>
+</div>
+
+<div id="weaponInfo">
+  <div id="weaponName">Pistola</div>
+  <div id="ammoCount">8</div>
+  <div id="ammoReserve">reserva: 0</div>
+</div>
+
+<div id="hotbar"></div>
+<div id="interactPrompt"></div>
+
+<div id="topInfo">
+  <div><b id="dayPhase">Dia 1 — Manhã</b></div>
+  <div>Zumbis ativos: <span id="zombieCount">0</span></div>
+</div>
+
+<div id="debugPanel"></div>
+<div id="warning"></div>
+<div id="damageFlash"></div>
+<div id="saveToast"></div>
+
+<div id="deathOverlay">
+  <h1>Você morreu</h1>
+  <p id="deathSummary"></p>
+  <button id="respawnBtn">Reiniciar</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module" src="main.js"></script>
+</body>
+</html>
